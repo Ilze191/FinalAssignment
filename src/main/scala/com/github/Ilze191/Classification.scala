@@ -52,7 +52,9 @@ object Classification extends App{
   output.show(10)
 
   // Indexing categorical label values
-  val labelIndexer = new StringIndexer().setInputCol("label").setOutputCol("indexedLabel").fit(output)
+  val labelIndexer = new StringIndexer()
+    .setInputCol("label")
+    .setOutputCol("indexedLabel").fit(output)
 
   // Split data set into training and test data sets - 70% and 30%
   val Array(train, test) = output.randomSplit(Array(0.7, 0.3))
