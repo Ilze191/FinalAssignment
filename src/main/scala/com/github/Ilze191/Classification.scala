@@ -30,12 +30,13 @@ object Classification extends App{
 
   prevCloseDF.show(5, false)
 
+ // Function which will be applied in making a new column
   val priceChange = udf((close: Double, prevClose: Double) => {
     val difference = close - prevClose
     if (difference < 0) "DOWN" else if (difference > 0) "UP" else "SAME"
   }
   )
-  //Add a new column with categorized close price change
+  // Add a new column with categorized close price change
   val categorizedDF = prevCloseDF
     .withColumn("label", priceChange(col("close"), col("prevClose")))
 
@@ -50,15 +51,8 @@ object Classification extends App{
 
   output.show(10)
 
-  // Transformers for data preparation; these help index categories for the label and categorical features,
-  // adding metadata to the DataFrame which the tree-based algorithms can recognize
+  // Indexing categorical label values
   val labelIndexer = new StringIndexer().setInputCol("label").setOutputCol("indexedLabel").fit(output)
-
-  val featureIndexer = new VectorIndexer()
-    .setInputCol("features")
-    .setOutputCol("indexedFeatures")
-    .setMaxCategories(4)
-    .fit(output)
 
   // Split data set into training and test data set - 70% and 30%
   val Array(train, test) = output.randomSplit(Array(0.7, 0.3))
@@ -68,8 +62,7 @@ object Classification extends App{
 
   val lr = new LogisticRegression()
     .setLabelCol("indexedLabel")
-    .setFeaturesCol("indexedFeatures")
-  //.setFeaturesCol("features")
+    .setFeaturesCol("features")
 
   // Convert indexed labels back to original labels
   val labelConverter = new IndexToString()
@@ -79,9 +72,9 @@ object Classification extends App{
 
   // Chain indexers and LogisticRegression in a Pipeline
   val pipeline = new Pipeline()
-    .setStages(Array(labelIndexer, featureIndexer, lr,labelConverter))
+    .setStages(Array(labelIndexer, lr,labelConverter))
 
-  // Train model. This also runs the indexers
+  // Train model. This also runs the indexer
   val model = pipeline.fit(train)
 
   // Run model with test data set to get predictions
@@ -101,7 +94,5 @@ object Classification extends App{
   val accuracy = evaluator.evaluate(predictions)
   println(s"Accuracy $accuracy Test Error = ${(1.0 - accuracy)}")
 
-  //  val treeModel = model.stages(2).asInstanceOf[DecisionTreeClassificationModel]
-  //  println(s"Learned classification tree model:\n ${treeModel.toDebugString}")
 
 }
