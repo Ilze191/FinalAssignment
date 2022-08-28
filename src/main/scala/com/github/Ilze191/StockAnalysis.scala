@@ -1,7 +1,7 @@
 package com.github.Ilze191
 
 import com.github.Ilze191.Utilities.getSpark
-import org.apache.spark.sql.functions._
+import org.apache.spark.sql.functions.{avg, col, desc, expr, round, stddev, to_date}
 
 object StockAnalysis extends App {
   val spark = getSpark("StockMarketAnalysis")
@@ -27,8 +27,8 @@ object StockAnalysis extends App {
   dfWithDate.createOrReplaceTempView("dfWithDateView")
 
   println("AVERAGE DAILY RETURN IN %")
+
   //Show individual ticker daily return and compute the average daily return of all stocks combined
-  //Eleonora code
   val avgValuesDf = spark.sql(
     """
       |SELECT
@@ -50,12 +50,14 @@ object StockAnalysis extends App {
   avgValuesDf1.show(10)
 
   //Save the results to the file as Parquet
+  //If file already exists, it will be overwritten with updated data
   avgValuesDf1.write
         .format("parquet")
         .mode("overwrite")
         .save("src/resources/parquet/average_stock_returns.parquet")
 
   //Save the results to the file as CSV
+  //If file already exists, it will be overwritten with updated data
   avgValuesDf1.write
         .format("csv")
         .mode("overwrite")
@@ -76,15 +78,14 @@ object StockAnalysis extends App {
     .mode("overwrite")
     .jdbc(newPath, tableName, props)
 
-  //Which stock was traded most frequently - as measured by closing price * volume - on average?
-
+  //Calculates stock frequency - measured by closing price * volume - on average?
   val mostFrequentStocks = spark.sql(
     """
       |SELECT ticker, ROUND((SUM(close * volume)/COUNT(volume))/1000,2)
-      |AS avgTradingThousands
+      |AS avgFrequencyThousands
       |FROM dfWithDateView
       |GROUP BY ticker
-      |ORDER BY avgTradingThousands DESC
+      |ORDER BY avgFrequencyThousands DESC
       |""".stripMargin)
 
   println("MOST FREQUENT TRADED STOCK ON AVERAGE")
