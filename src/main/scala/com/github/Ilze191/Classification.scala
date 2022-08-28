@@ -83,7 +83,7 @@ object Classification extends App{
 
   predictions.show()
 
-  // Select example rows to display
+  // Select rows to display
   predictions.select("features","label", "predictedLabel").show(5)
   // Will compare prediction and label if there are any mismatches
   val evaluator = new MulticlassClassificationEvaluator()
