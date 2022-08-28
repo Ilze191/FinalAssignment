@@ -54,7 +54,7 @@ object Classification extends App{
   // Indexing categorical label values
   val labelIndexer = new StringIndexer().setInputCol("label").setOutputCol("indexedLabel").fit(output)
 
-  // Split data set into training and test data set - 70% and 30%
+  // Split data set into training and test data sets - 70% and 30%
   val Array(train, test) = output.randomSplit(Array(0.7, 0.3))
 
   //  train.show(5, false)
@@ -70,11 +70,11 @@ object Classification extends App{
     .setOutputCol("predictedLabel")
     .setLabels(labelIndexer.labelsArray(0))
 
-  // Chain indexers and LogisticRegression in a Pipeline
+  // Chain transformers in a Pipeline
   val pipeline = new Pipeline()
     .setStages(Array(labelIndexer, lr,labelConverter))
 
-  // Train model. This also runs the indexer
+  // Train model
   val model = pipeline.fit(train)
 
   // Run model with test data set to get predictions
