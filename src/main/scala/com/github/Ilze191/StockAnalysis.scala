@@ -91,8 +91,8 @@ object StockAnalysis extends App {
   println("MOST FREQUENT TRADED STOCK ON AVERAGE")
   mostFrequentStocks.show(1)
 
-  //Which stock was the most volatile as measured by annualized standard deviation of daily returns.
-  //Standard deviation of daily returns * square root of trading days per year
+  //Calculates stock volatility - measured by annualized standard deviation of daily returns
+  //Formula -> standard deviation of daily returns * square root of trading days per year
 
   val tradingDays = dfWithDate.selectExpr("count(distinct(date))").first.getLong(0) //getting the count of trading days - 249
   println("THE MOST VOLATILE STOCK")
