@@ -1,6 +1,6 @@
 package com.github.Ilze191
 
-import com.github.Ilze191.Utilities.getSpark
+import com.github.Ilze191.SparkUtil.getSpark
 import org.apache.spark.ml.Pipeline
 import org.apache.spark.ml.classification.LogisticRegression
 import org.apache.spark.ml.evaluation.MulticlassClassificationEvaluator
@@ -8,7 +8,7 @@ import org.apache.spark.ml.feature.{IndexToString, StringIndexer, VectorAssemble
 import org.apache.spark.sql.functions.{col, expr, udf}
 
 object Classification extends App{
-  val spark = getSpark("StockMarketAnalysis")
+  val spark = getSpark("Classification")
 
   val filePath = "src/resources/stocks/stock_prices_.csv"
 
@@ -17,10 +17,11 @@ object Classification extends App{
     .option("inferSchema", "true")
     .load(filePath)
 
+  println("** ORIGINAL DATAFRAME **")
   df.show(5,false)
   df.printSchema()
 
-  // Add a new column with previous day's close price
+  //Add a new column with previous day's close price
   val prevCloseDF = df
     .withColumn("prevClose", expr("" +
       "LAG (close,1,0) " +
@@ -28,72 +29,76 @@ object Classification extends App{
       "ORDER BY date )"))
     .where("prevClose != 0.0")
 
+  println("** ADDED COLUMN WITH PREVIOUS DAY'S CLOSE PRICE **")
   prevCloseDF.show(5, false)
 
- // Function which will be applied in making a new column
+ //Function which will be applied in making a new column
   val priceChange = udf((close: Double, prevClose: Double) => {
     val difference = close - prevClose
-    if (difference < 0) "DOWN" else if (difference > 0) "UP" else "SAME"
+    if (difference < 0) "DOWN" else if (difference > 0) "UP" else "UNCHANGED"
   }
   )
-  // Add a new column with categorized close price change
+  //Add a new column with close price change values as 3 categories
   val categorizedDF = prevCloseDF
     .withColumn("label", priceChange(col("close"), col("prevClose")))
-
+  println("** ADDED LABEL COLUMN WITH CATEGORIZED PRICE CHANGE VALUES **")
   categorizedDF.show(5)
 
   val assembler = new VectorAssembler()
     .setInputCols(Array("open", "high", "low", "close"))
     .setOutputCol("features")
 
-  val output = assembler.transform(categorizedDF)
+  val outputDF = assembler.transform(categorizedDF)
     .select("date", "features", "label")
+  println("** DATAFRAME WHICH WILL BE USED FOR ML **")
+  outputDF.show(5)
 
-  output.show(10)
-
-  // Indexing categorical label values
+  //Indexing categorical label values
   val labelIndexer = new StringIndexer()
     .setInputCol("label")
-    .setOutputCol("indexedLabel").fit(output)
+    .setOutputCol("indexedLabel").fit(outputDF)
 
-  // Split data set into training and test data sets - 70% and 30%
-  val Array(train, test) = output.randomSplit(Array(0.7, 0.3))
+  //Split data set into training and test data sets - 70% and 30%
+  val Array(train, test) = outputDF.randomSplit(Array(0.7, 0.3))
 
-  //  train.show(5, false)
-  //  test.show(5, false)
+  //train.show(5, false)
+  //test.show(5, false)
 
   val lr = new LogisticRegression()
     .setLabelCol("indexedLabel")
     .setFeaturesCol("features")
 
-  // Convert indexed labels back to original labels
+  //Convert indexed labels back to original labels
   val labelConverter = new IndexToString()
     .setInputCol("prediction")
     .setOutputCol("predictedLabel")
     .setLabels(labelIndexer.labelsArray(0))
 
-  // Chain transformers in a Pipeline
+  //Chain transformers in a pipeline
   val pipeline = new Pipeline()
     .setStages(Array(labelIndexer, lr,labelConverter))
 
-  // Train model
+  //Train model
   val model = pipeline.fit(train)
 
-  // Run model with test data set to get predictions
-  // This will add new columns - rawPrediction, probability and prediction
-  val predictions = model.transform(test)
+  //Run model with test data set to get predictions
+  //This will add new columns - rawPrediction, probability and prediction
+  val predictionsDF = model.transform(test)
+  println("** DATAFRAME WITH PREDICTIONS **")
+  predictionsDF.show(10)
 
-  predictions.show()
+  println("** DATA WITH PREDICTED LABEL **")
+  //Select rows to display
+  predictionsDF.select("features","label", "predictedLabel").show(5)
 
-  // Select rows to display
-  predictions.select("features","label", "predictedLabel").show(5)
-  // Will compare prediction and label if there are any mismatches
+  //Will compare prediction and label if there are any mismatches
   val evaluator = new MulticlassClassificationEvaluator()
     .setLabelCol("indexedLabel")
     .setPredictionCol("prediction")
     .setMetricName("accuracy")
-  // Error is going to be 1.0 - accuracy
-  val accuracy = evaluator.evaluate(predictions)
+
+  //Error is going to be 1.0 - accuracy
+  val accuracy = evaluator.evaluate(predictionsDF)
   println(s"Accuracy $accuracy Test Error = ${(1.0 - accuracy)}")
 
 

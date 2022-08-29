@@ -1,12 +1,14 @@
 package com.github.Ilze191
 
-import com.github.Ilze191.Utilities.getSpark
+import com.github.Ilze191.SparkUtil.getSpark
 import org.apache.spark.sql.functions.{avg, col, desc, expr, round, stddev, to_date}
 
 object StockAnalysis extends App {
   val spark = getSpark("StockMarketAnalysis")
 
-  val filePath = "src/resources/stocks/stock_prices_.csv"
+  val defaultSrc = "src/resources/stocks/stock_prices_.csv"
+  val filePath = if (args.length >= 1) args(0) else defaultSrc
+  println(s"READING FROM $filePath")
 
   //Load up stock_prices.csv as a DataFrame
   val df = spark.read.format("csv")
@@ -22,11 +24,11 @@ object StockAnalysis extends App {
     .withColumn("dailyReturn", expr("round((close - open) / open * 100, 4)" ))//daily change in percentages for all rows
 
   println("ADDED COLUMN WITH DAILY RETURN - CHANGE IN %")
-  dfWithDate.sort("date")show(10)
+  dfWithDate.sort("date").show(10)
 
   dfWithDate.createOrReplaceTempView("dfWithDateView")
 
-  println("AVERAGE DAILY RETURN IN %")
+  println("AVERAGE DAILY RETURN IN % (SHOWING EVERY STOCK)")
 
   //Show individual ticker daily return and compute the average daily return of all stocks combined
   val avgValuesDf = spark.sql(
@@ -38,47 +40,57 @@ object StockAnalysis extends App {
       |WHERE date IS NOT NULL
       |ORDER BY date
       |""".stripMargin)
-  avgValuesDf.show(10)
+
+  //Create dataframe with avgDailyReturn rounded
+  val avgValuesDfRounded = avgValuesDf
+    .withColumn("avgDailyReturn", expr("ROUND(`avgDailyReturn`, 4)"))
+    .select("date", "ticker", "dailyReturn", "avgDailyReturn")
+  avgValuesDfRounded.show(10)
 
   //Compute the daily average return of all stocks combined, without individual ticker daily return
   println("AVERAGE DAILY RETURN IN % OF ALL STOCKS COMBINED")
-  val avgValuesDf1 = dfWithDate
+  val avgDailyReturn = dfWithDate
     .groupBy("date")
-    .agg(round(avg("dailyReturn"),4).alias("avgDailyReturn"))
+    .agg(round(avg("dailyReturn"), 4).alias("avgDailyReturn"))
     .sort("date")
-
-  avgValuesDf1.show(10)
+  avgDailyReturn.show(10)
+  //avgValuesDf.show(10)
 
   //Save the results to the file as Parquet
   //If file already exists, it will be overwritten with updated data
-  avgValuesDf1.write
-        .format("parquet")
-        .mode("overwrite")
-        .save("src/resources/parquet/average_stock_returns.parquet")
+  avgValuesDf.write
+    .format("parquet")
+    .mode("overwrite")
+    .save("src/resources/parquet/average_stock_returns.parquet")
 
   //Save the results to the file as CSV
   //If file already exists, it will be overwritten with updated data
-  avgValuesDf1.write
-        .format("csv")
-        .mode("overwrite")
-        .option("header", true)
-        .save("src/resources/csv/average_stock_returns.csv")
+  avgValuesDf.write
+    .format("csv")
+    .mode("overwrite")
+    .option("header", true)
+    .save("src/resources/csv/average_stock_returns.csv")
 
   val newPath = "jdbc:sqlite:src/resources/tmp/final-sqlite.db"
   val tableName = "Stock_prices"
 
-  println(s"WRITING TO SQL DATABASE ${newPath} TABLE $tableName")
+  println(s"WRITING TO SQL DATABASE $newPath TABLE $tableName")
 
   val props = new java.util.Properties
   props.setProperty("driver", "org.sqlite.JDBC")
 
+  //Cast date type to string
+  val avgValuesDf2 = avgValuesDf
+    .withColumn("date", col("date").cast("string"))
+    .select("date", "avgDailyReturn")
+
   //Save the results to SQL database
-  avgValuesDf1
+  avgValuesDf2
     .write
     .mode("overwrite")
     .jdbc(newPath, tableName, props)
 
-  //Calculates stock frequency - measured by closing price * volume - on average?
+  //Calculates stock frequency - measured by closing price * volume - on average
   val mostFrequentStocks = spark.sql(
     """
       |SELECT ticker, ROUND((SUM(close * volume)/COUNT(volume))/1000,2)
