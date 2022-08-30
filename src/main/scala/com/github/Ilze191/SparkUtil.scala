@@ -20,6 +20,7 @@ object SparkUtil extends App {
   }
 
   /**
+   *
    * @param spark SparkSession
    * @param filePath location of the source file
    * @param source specifies the file format
@@ -42,8 +43,8 @@ object SparkUtil extends App {
       .option("header", header.toString)
       .option("inferSchema", inferSchema.toString)
       .load(filePath)
-    //so if you pass only white space or nothing to view we will not create it
-    //so if viewName is not blank
+    //if passing only white space or nothing to view we will not create it
+    //if viewName is not blank
     if (viewName.nonEmpty){
       df.createOrReplaceTempView(viewName)
       println(s"Created Temporary View for SQL queries called: $viewName")

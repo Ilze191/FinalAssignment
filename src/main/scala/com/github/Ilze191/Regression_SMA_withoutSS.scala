@@ -46,6 +46,7 @@ object Regression_SMA_withoutSS extends App{
   var window = Window.partitionBy("ticker").orderBy("date")
 
   //creating new columns with previous days close prices (b_1 - close price one day ago, b_2 - close price two days ago)
+
   val df_withPreviousPrices = df
     .select("date", "ticker", "close")
     .withColumn("b_1", lag(col("close"), offset = 1).over(window))
@@ -64,7 +65,6 @@ object Regression_SMA_withoutSS extends App{
 
   //calculating simple moving average for 10 previous days
   var df_SMA = df_withPreviousPrices
-    //.select("b_1", "b_2", "b_3")
     .withColumn("SMA_10",
       (col("b_1") + col("b_2") + col("b_3") +
         col("b_4") + col("b_5") + col("b_6") +
@@ -74,8 +74,10 @@ object Regression_SMA_withoutSS extends App{
 
   df_SMA.createOrReplaceTempView("df_SMA_view")
 
+
   //indexing ticker
   val tickerIdx = new StringIndexer().setInputCol("ticker").setOutputCol("tickerInd")
+
 
   //using One Hot Encoder for categorical value tickerInd
   val ohe = new OneHotEncoder().setInputCol("tickerInd").setOutputCol("ticker_encoded")
@@ -87,7 +89,8 @@ object Regression_SMA_withoutSS extends App{
 
   fittedPipeline.show(false)
 
-  //creating RFormula
+  // creating RFormula
+
   val model_RFormula = new RFormula()
     .setFormula("close ~ SMA_10 + ticker_encoded")
 
@@ -97,11 +100,8 @@ object Regression_SMA_withoutSS extends App{
 
   val Array(train, test) = preparedDF.randomSplit(Array(0.75, 0.25))
 
-  //building linear regression
+  // building linear regression
   val lr = new LinearRegression()
-    //.setMaxIter(10)
-    .setRegParam(0.3)
-    .setElasticNetParam(0.8)
 
   println(lr.explainParams())
 
@@ -113,7 +113,7 @@ object Regression_SMA_withoutSS extends App{
   println(s"INTERCEPT: ${lrModel.intercept}")
   println(s"COEFFICIENTS: ${lrModel.coefficients.toArray.mkString(",")}")
 
-  //printing some model summary:
+  // printing some model summary:
   println()
   println("MODEL EVALUATION")
   val trainingSummary = lrModel.summary
@@ -132,11 +132,14 @@ object Regression_SMA_withoutSS extends App{
   val rmse = evaluator.setMetricName("rmse").evaluate(fittedDF)
   println(s"RMSE: $rmse")
 
+
   val r2 = evaluator.setMetricName("r2").evaluate(fittedDF)
   println(s"r2: $r2")
 
-  //preparing for predicting price for next day
+
+  // Preparing for predicting price for next day
   //different stocks:
+
   preparedDF.createOrReplaceTempView("preparedDF_view")
 
   val stocks = spark.sql(
@@ -174,6 +177,7 @@ object Regression_SMA_withoutSS extends App{
   )
 
   //putting results (SMA and predictions) into stock dataframe
+
   val rdd1 = spark.sparkContext.parallelize(SMA_list)
   val rdd_new1 = stocks.rdd.zip(rdd1).map(r => Row.fromSeq(r._1.toSeq ++ Seq(r._2)))
   val stocksNew =spark.createDataFrame(rdd_new1, stocks.schema.add("SMA_currentDay", DoubleType))

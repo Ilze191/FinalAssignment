@@ -18,6 +18,8 @@ object StockAnalysis extends App {
 
   df.show(5, false)
 
+  //Changing the format of date column values
+  //Adding a new column with daily return values in percentages
   val dateFormat = "yyyy-MM-dd"
   val dfWithDate = df
     .withColumn("date", to_date(col("date"), dateFormat))
@@ -27,8 +29,6 @@ object StockAnalysis extends App {
   dfWithDate.sort("date").show(10)
 
   dfWithDate.createOrReplaceTempView("dfWithDateView")
-
-  println("AVERAGE DAILY RETURN IN % (SHOWING EVERY STOCK)")
 
   //Show individual ticker daily return and compute the average daily return of all stocks combined
   val avgValuesDf = spark.sql(
@@ -45,27 +45,29 @@ object StockAnalysis extends App {
   val avgValuesDfRounded = avgValuesDf
     .withColumn("avgDailyReturn", expr("ROUND(`avgDailyReturn`, 4)"))
     .select("date", "ticker", "dailyReturn", "avgDailyReturn")
+
+  println("AVERAGE DAILY RETURN IN % (SHOWING EVERY STOCK)")
   avgValuesDfRounded.show(10)
 
   //Compute the daily average return of all stocks combined, without individual ticker daily return
-  println("AVERAGE DAILY RETURN IN % OF ALL STOCKS COMBINED")
   val avgDailyReturn = dfWithDate
     .groupBy("date")
     .agg(round(avg("dailyReturn"), 4).alias("avgDailyReturn"))
     .sort("date")
+
+  println("AVERAGE DAILY RETURN IN % OF ALL STOCKS COMBINED")
   avgDailyReturn.show(10)
-  //avgValuesDf.show(10)
 
   //Save the results to the file as Parquet
   //If file already exists, it will be overwritten with updated data
-  avgValuesDf.write
+  avgDailyReturn.write
     .format("parquet")
     .mode("overwrite")
     .save("src/resources/parquet/average_stock_returns.parquet")
 
   //Save the results to the file as CSV
   //If file already exists, it will be overwritten with updated data
-  avgValuesDf.write
+  avgDailyReturn.write
     .format("csv")
     .mode("overwrite")
     .option("header", true)
@@ -80,7 +82,7 @@ object StockAnalysis extends App {
   props.setProperty("driver", "org.sqlite.JDBC")
 
   //Cast date type to string
-  val avgValuesDf2 = avgValuesDf
+  val avgValuesDf2 = avgDailyReturn
     .withColumn("date", col("date").cast("string"))
     .select("date", "avgDailyReturn")
 
