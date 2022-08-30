@@ -10,12 +10,12 @@ import org.apache.spark.sql.Row
 import org.apache.spark.sql.expressions.Window
 import org.apache.spark.sql.functions.{avg, col, desc, lag}
 import org.apache.spark.sql.types.DoubleType
-
 import scala.collection.mutable.ArrayBuffer
+
 object Regression_SMA_withoutSS extends App{
   val spark = getSpark("Trying regression")
 
-  val filePath = "src/resources/final_project/stock_prices_.csv"
+  val filePath = "src/resources/stocks/stock_prices_.csv"
   val df = readDataWithView(spark, filePath)
 
   df.show()
@@ -34,7 +34,7 @@ object Regression_SMA_withoutSS extends App{
 
   //vectorizing potential features in order to calculate correlation matrix
   val va = new VectorAssembler()
-    .setInputCols(Array("open","high", "low", "close", "volume"))
+    .setInputCols(Array("open","high", "low", "volume"))
     .setOutputCol("vectorized features")
   val dfVectorized = va.transform(df)
 
@@ -186,5 +186,4 @@ object Regression_SMA_withoutSS extends App{
   val rdd_newPred = stocksNew.rdd.zip(rddPred).map(r => Row.fromSeq(r._1.toSeq ++ Seq(r._2)))
   val stocksPredicted = spark.createDataFrame(rdd_newPred, stocksNew.schema.add("Stock price prediction", DoubleType))
   stocksPredicted.show
-
 }

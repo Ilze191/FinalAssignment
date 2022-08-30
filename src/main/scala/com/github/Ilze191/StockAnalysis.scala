@@ -92,7 +92,7 @@ object StockAnalysis extends App {
     .mode("overwrite")
     .jdbc(newPath, tableName, props)
 
-  //Calculates stock frequency - measured by closing price * volume - on average
+  //Calculates stock trading frequency - measured by closing price * volume - on average
   val mostFrequentStocks = spark.sql(
     """
       |SELECT ticker, ROUND((SUM(close * volume)/COUNT(volume))/1000,2)
